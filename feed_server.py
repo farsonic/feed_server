@@ -23,15 +23,6 @@ print "Existing VPN list loaded..."
 def start_server():
     httpd = BaseHTTPServer.HTTPServer((server_ip, int(port)), SimpleHTTPServer.SimpleHTTPRequestHandler)
     httpd.socket = ssl.wrap_socket (httpd.socket, certfile='./server.pem', server_side=True)
-    print "Server running and serving at https://"+server_ip+":"+port+"/"+compressed_file
-    print "JUNOS SRX configuration"
-    print "=========="
-    print "set security dynamic-address feed-server custom-feed hostname "+server_ip+":"+port
-    print "set security dynamic-address feed-server custom-feed update-interval 30"
-    print "set security dynamic-address feed-server custom-feed hold-interval 300"
-    print "set security dynamic-address feed-server custom-feed feed-name "+file+" path "+compressed_file
-    print "set security dynamic-address address-name custom-feed profile feed-name custom-feed"
-    print "=========="
     httpd.serve_forever()
 
 def write_to_file(vpnlist):
