@@ -10,7 +10,7 @@ import BaseHTTPServer, SimpleHTTPServer
 import ssl
 from netaddr import *
 from scapy.all import *
-
+import logging
 
 #vars
 
@@ -21,6 +21,20 @@ psiphon_clients_file_compressed = 'clients.gz'
 server_ip = '0.0.0.0'
 port = '4443'
 
+
+
+def init_logger():
+
+  logging.basicConfig(filename='./thread_clients_update',
+                      level = logging.INFO,
+                      format='%(asctime)s %(levelname)-8s %(message)s',
+                      datefmt='%a, %d %b %Y %H:%M:%S')
+  global logger
+  logger = logging.getLogger(__name__) 
+
+  logger.info(" -- Start -- ")
+
+  return logger;
 
 def start_server():
     httpd = BaseHTTPServer.HTTPServer((server_ip, int(port)), SimpleHTTPServer.SimpleHTTPRequestHandler)
@@ -93,9 +107,11 @@ def monitorClientsList(filename):
 
   client_to_remove = []
 
-  while true:
+  logger.info("Starting thread for clients notification feed update")
 
-    print "Checking if some clients can be removed from notification feed.\n"
+  while True:
+
+    logger.info("Checking if some clients can be removed from notification feed.")
     if os.path.exists(filename):
       f = open(filename, "r")
       for client in f:
@@ -105,15 +121,15 @@ def monitorClientsList(filename):
    	  client_to_remove.append(client.split(";")[0])
       f.close()
     else:
-      print "Cannot find the file %s" %filename
+      logger.info("Cannot find the file %s" %filename)
 
     if len(client_to_remove) > 0:
-      print "%d clients can be removed from the notification feed" % len(client_to_remove)	
+      logger.info("%d clients can be removed from the notification feed" % len(client_to_remove))
       try:
-        print "Trying to open %s to remove expired entries" % filename
+        logger.info("Trying to open %s to remove expired entries" % filename)
         f = open(filename, 'a')
         if f:
-          print "%s is not locked. Cleaning the file" % filename
+          logger.info("%s is not locked. Cleaning the file" % filename)
           data = f.readlines()
           f.seek(0)
           for i in data:
@@ -121,21 +137,23 @@ def monitorClientsList(filename):
             if ip_client not in client_to_remove:
               f.write(i)
             else:
-              print "Client IP %s has been removed" %ip_client
+              logger.info("Client IP %s has been removed" %ip_client)
               client_to_remove.remove(ip_client)
           f.truncate()
       except IOError, message:
-        print "File is locked (unable to open in append mode). Retry in next iteration."
+        logger.info("File is locked (unable to open in append mode). Retry in next iteration.")
       finally:
         if f:
           f.close()
-          print "%s closed." % filename
+          logger.info("%s closed." % filename)
     else:
-      print "No entry has expired. "
+      logger.info("No entry has expired")
 
     time.sleep(10)
 
 if __name__ == "__main__":
+
+    init_logger()
 
     fileExist(psiphon_servers_file)
     fileExist(psiphon_clients_file)
