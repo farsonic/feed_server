@@ -41,14 +41,15 @@ def start_server():
 
 def write_to_file(f, f_gz, liste):
     txt_file = open(f, "w+")
+    now = time.time()
     for ip in liste:
-        txt_file.write(str(ip)+"\n")
+        txt_file.write(str(ip)+";"+now+"\n")
     txt_file.close()
     gzip_file(f, f_gz)
 
 def gzip_file(f, f_compressed):
     with open(f) as f_in, gzip.open(f_compressed, 'wb') as f_out:
-        f_out.writelines(f_in)
+        f_out.writelines(f_in.split(";")[0])
 
 def syslog_print(packet):
     psiphon_server_regex = re.compile(r'^.*source-address=\"(([0-9]{1,3}\.){3}[0-9]{1,3}).*destination-address=\"(([0-9]{1,3}\.){3}[0-9]{1,3}).*(attack-name=\"PSIPHON-).*$')
@@ -92,13 +93,15 @@ if __name__ == "__main__":
     fileExist(psiphon_servers_file)
     fileExist(psiphon_clients_file)
 
-    vpnlist = [IPNetwork(line.rstrip('\n')) for line in open(psiphon_servers_file)]
+    vpnlist = [IPNetwork(line.rstrip('\n').split(";")[0]) for line in open(psiphon_servers_file)]
     vpnlist.sort()
     print "Existing VPN list loaded..."
 
-    clientlist = [IPNetwork(line.rstrip('\n')) for line in open(psiphon_clients_file)]
+    clientlist = [IPNetwork(line.rstrip('\n').split(";")[0]) for line in open(psiphon_clients_file)]
     clientlist.sort()
     print "Existing Clients list loaded..."
 
     thread.start_new_thread(start_server, ())
     sniff(prn=syslog_print, filter='udp and (port 514) and (not ip6)', store=0)
+
+    
