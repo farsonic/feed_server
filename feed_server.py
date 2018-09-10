@@ -43,13 +43,15 @@ def write_to_file(f, f_gz, liste):
     txt_file = open(f, "w+")
     now = time.time()
     for ip in liste:
-        txt_file.write(str(ip)+";"+now+"\n")
+        txt_file.write(str(ip)+";"+str(now)+"\n")
     txt_file.close()
     gzip_file(f, f_gz)
 
 def gzip_file(f, f_compressed):
     with open(f) as f_in, gzip.open(f_compressed, 'wb') as f_out:
-        f_out.writelines(f_in.split(";")[0])
+	for line in f_in:
+		ip = line.split(";")[0]
+        	f_out.write(ip+"\n")
 
 def syslog_print(packet):
     psiphon_server_regex = re.compile(r'^.*source-address=\"(([0-9]{1,3}\.){3}[0-9]{1,3}).*destination-address=\"(([0-9]{1,3}\.){3}[0-9]{1,3}).*(attack-name=\"PSIPHON-).*$')
@@ -58,7 +60,7 @@ def syslog_print(packet):
 
     psiphon_syslog = psiphon_server_regex.search(log[0])
     if psiphon_syslog != None:
-        print "match! Source IP: "+str(psiphon_syslog.group(1))+" - Destination IP "+str(psiphon_syslog.group(3))+"\n"
+        #print "match! Source IP: "+str(psiphon_syslog.group(1))+" - Destination IP "+str(psiphon_syslog.group(3))+"\n"
         ip_addr = psiphon_syslog.group(3) + "/32"
         #ip_addr = IPNetwork(log[0])
         if ip_addr not in vpnlist:
@@ -87,6 +89,51 @@ def fileExist(fname):
     return True
 
 
+def monitorClientsList(filename):
+
+  client_to_remove = []
+
+  while true:
+
+    print "Checking if some clients can be removed from notification feed.\n"
+    if os.path.exists(filename):
+      f = open(filename, "r")
+      for client in f:
+        # lets fix it to 5 minutes -> 300 seconds
+        if time.time() - float(client.split(";")[1]) > 300:
+	  #can be remobe from the list
+   	  client_to_remove.append(client.split(";")[0])
+      f.close()
+    else:
+      print "Cannot find the file %s" %filename
+
+    if len(client_to_remove) > 0:
+      print "%d clients can be removed from the notification feed" % len(client_to_remove)	
+      try:
+        print "Trying to open %s to remove expired entries" % filename
+        f = open(filename, 'a')
+        if f:
+          print "%s is not locked. Cleaning the file" % filename
+          data = f.readlines()
+          f.seek(0)
+          for i in data:
+            ip_client = i.split(";")[0]
+            if ip_client not in client_to_remove:
+              f.write(i)
+            else:
+              print "Client IP %s has been removed" %ip_client
+              client_to_remove.remove(ip_client)
+          f.truncate()
+      except IOError, message:
+        print "File is locked (unable to open in append mode). Retry in next iteration."
+      finally:
+        if f:
+          f.close()
+          print "%s closed." % filename
+    else:
+      print "No entry has expired. "
+
+    time.sleep(10)
 
 if __name__ == "__main__":
 
@@ -102,6 +149,7 @@ if __name__ == "__main__":
     print "Existing Clients list loaded..."
 
     thread.start_new_thread(start_server, ())
+    thread.start_new_thread(monitorClientsList, (psiphon_clients_file,))
     sniff(prn=syslog_print, filter='udp and (port 514) and (not ip6)', store=0)
 
     
