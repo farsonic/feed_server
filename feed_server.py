@@ -61,12 +61,8 @@ def isNewEntry(f, ip):
 
     f.seek(0)
     for line in f:
-      print "Comparing %s (file) with %s (new)" % (line.split(";")[0] , ip)
       if line.split(";")[0] == ip: 
-	print "MATCH"
         isFound = True
-      else:
-        print "does not match (elt1 = %s & elt2 = %s" % (line.split(";")[0] , ip) 
 
     return isFound  
 
@@ -76,7 +72,7 @@ def write_to_file(f, f_gz, liste):
     for ip in liste:
       if isNewEntry(txt_file, ip) == False:
         print "IP %s does not exist in the file %s" % (ip, txt_file)
-	txt_file.seek(2)
+	    txt_file.seek(2)
         txt_file.write(str(ip)+";"+str(now)+"\n")
       else:
         print "IP %s already exist in file %s" % (ip, f)
@@ -91,6 +87,7 @@ def gzip_file(f, f_compressed):
     for line in f_in:
       ip = line.split(";")[0]
       ip_list.append(ip)
+    # required to sort IP properly
     ipl = [(IP(ip).int(), ip) for ip in ip_list]
     ipl.sort()
     ip_list = [ip[1] for ip in ipl]
@@ -122,8 +119,6 @@ def syslog_print(packet):
             clientlist.append(ip_client)
             clientlist.sort()
             write_to_file(psiphon_clients_file, psiphon_clients_file_compressed, clientlist)
-        else:
-            print "Client %s already known" %ip_client
 
 
 def fileExist(fname, gz=None):
@@ -175,8 +170,8 @@ def monitorClientsList(filename):
             logger.info("Client IP %s has been removed" %ip_client)
             client_to_remove.remove(ip_client)
         f.truncate()
-	#rewrite gz
-	#write_to_file(psiphon_clients_file, psiphon_clients_file_compressed, clientlist)		
+	    #rewrite gz
+	    write_to_file(psiphon_clients_file, psiphon_clients_file_compressed, clientlist)		
       except IOError, message:
         logger.info("File is locked (%s). Retry in next iteration." % message)
       finally:
