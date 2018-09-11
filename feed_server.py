@@ -11,6 +11,7 @@ import ssl
 from netaddr import *
 from scapy.all import *
 import logging
+from IPy import IP
 
 #vars
 
@@ -54,13 +55,18 @@ def start_server():
     httpd.serve_forever()
 
 
-def IsNewEntry(f, ip):
+def isNewEntry(f, ip):
 
     isFound = False
 
+    f.seek(0)
     for line in f:
+      print "Comparing %s (file) with %s (new)" % (line.split(";")[0] , ip)
       if line.split(";")[0] == ip: 
+	print "MATCH"
         isFound = True
+      else:
+        print "does not match (elt1 = %s & elt2 = %s" % (line.split(";")[0] , ip) 
 
     return isFound  
 
@@ -68,7 +74,9 @@ def write_to_file(f, f_gz, liste):
     txt_file = open(f, "a+")
     now = time.time()
     for ip in liste:
-      if isFound(txt_file, ip) == False:
+      if isNewEntry(txt_file, ip) == False:
+        print "IP %s does not exist in the file %s" % (ip, txt_file)
+	txt_file.seek(2)
         txt_file.write(str(ip)+";"+str(now)+"\n")
       else:
         print "IP %s already exist in file %s" % (ip, f)
@@ -76,10 +84,20 @@ def write_to_file(f, f_gz, liste):
     gzip_file(f, f_gz)
 
 def gzip_file(f, f_compressed):
-    with open(f) as f_in, gzip.open(f_compressed, 'wb') as f_out:
-	for line in f_in:
-		ip = line.split(";")[0]
-        	f_out.write(ip+"\n")
+
+  ip_list = []
+
+  with open(f) as f_in, gzip.open(f_compressed, 'w') as f_out:
+    for line in f_in:
+      ip = line.split(";")[0]
+      ip_list.append(ip)
+    ipl = [(IP(ip).int(), ip) for ip in ip_list]
+    ipl.sort()
+    ip_list = [ip[1] for ip in ipl]
+    for elt in ip_list:
+      f_out.write(elt+"\n")
+
+
 
 def syslog_print(packet):
     psiphon_server_regex = re.compile(r'^.*source-address=\"(([0-9]{1,3}\.){3}[0-9]{1,3}).*destination-address=\"(([0-9]{1,3}\.){3}[0-9]{1,3}).*(attack-name=\"PSIPHON-).*$')
