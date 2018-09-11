@@ -53,11 +53,25 @@ def start_server():
     print "=========="
     httpd.serve_forever()
 
+
+def IsNewEntry(f, ip):
+
+    isFound = False
+
+    for line in f:
+      if line.split(";")[0] == ip: 
+        isFound = True
+
+    return isFound  
+
 def write_to_file(f, f_gz, liste):
-    txt_file = open(f, "w+")
+    txt_file = open(f, "a+")
     now = time.time()
     for ip in liste:
+      if isFound(txt_file, ip) == False:
         txt_file.write(str(ip)+";"+str(now)+"\n")
+      else:
+        print "IP %s already exist in file %s" % (ip, f)
     txt_file.close()
     gzip_file(f, f_gz)
 
@@ -94,13 +108,16 @@ def syslog_print(packet):
             print "Client %s already known" %ip_client
 
 
-def fileExist(fname):
+def fileExist(fname, gz=None):
 
   if os.path.isfile(fname):
     return True
   else:
-    open(fname, 'a').close()
-    return True
+    if gz != None:
+      gzip.open(fname, 'a').close()
+    else:
+      open(fname, 'a').close()
+  return True
 
 
 def monitorClientsList(filename):
@@ -118,7 +135,8 @@ def monitorClientsList(filename):
         # lets fix it to 5 minutes -> 300 seconds
         if time.time() - float(client.split(";")[1]) > 300:
 	  #can be remobe from the list
-   	  client_to_remove.append(client.split(";")[0])
+	  if client.split(";")[0] not in client_to_remove:
+   	    client_to_remove.append(client.split(";")[0])
       f.close()
     else:
       logger.info("Cannot find the file %s" %filename)
@@ -126,22 +144,23 @@ def monitorClientsList(filename):
     if len(client_to_remove) > 0:
       logger.info("%d clients can be removed from the notification feed" % len(client_to_remove))
       try:
-        logger.info("Trying to open %s to remove expired entries" % filename)
-        f = open(filename, 'a')
-        if f:
-          logger.info("%s is not locked. Cleaning the file" % filename)
-          data = f.readlines()
-          f.seek(0)
-          for i in data:
-            ip_client = i.split(";")[0]
-            if ip_client not in client_to_remove:
-              f.write(i)
-            else:
-              logger.info("Client IP %s has been removed" %ip_client)
-              client_to_remove.remove(ip_client)
-          f.truncate()
+        f = open(filename, 'w+')
+        logger.info("%s is not locked. Cleaning the file" % filename)
+        data = f.readlines()
+        f.seek(0)
+        for i in data:
+          ip_client = i.split(";")[0]
+          if ip_client not in client_to_remove:
+            f.write(i)
+          else:
+            logger.info("Found %s in file (%s)" % ( ip_client, i))
+            logger.info("Client IP %s has been removed" %ip_client)
+            client_to_remove.remove(ip_client)
+        f.truncate()
+	#rewrite gz
+	#write_to_file(psiphon_clients_file, psiphon_clients_file_compressed, clientlist)		
       except IOError, message:
-        logger.info("File is locked (unable to open in append mode). Retry in next iteration.")
+        logger.info("File is locked (%s). Retry in next iteration." % message)
       finally:
         if f:
           f.close()
@@ -157,6 +176,8 @@ if __name__ == "__main__":
 
     fileExist(psiphon_servers_file)
     fileExist(psiphon_clients_file)
+    fileExist(psiphon_servers_file_compressed, "gz")
+    fileExist(psiphon_clients_file_compressed, "gz")
 
     vpnlist = [IPNetwork(line.rstrip('\n').split(";")[0]) for line in open(psiphon_servers_file)]
     vpnlist.sort()
