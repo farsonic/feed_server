@@ -71,8 +71,8 @@ def write_to_file(f, f_gz, liste):
     now = time.time()
     for ip in liste:
       if isNewEntry(txt_file, ip) == False:
-        print "IP %s does not exist in the file %s" % (ip, txt_file)
-	    txt_file.seek(2)
+        print "IP %s does not exist in the file %s" % (ip, f)
+	txt_file.seek(2)
         txt_file.write(str(ip)+";"+str(now)+"\n")
       else:
         print "IP %s already exist in file %s" % (ip, f)
@@ -144,9 +144,12 @@ def monitorClientsList(filename):
     logger.info("Checking if some clients can be removed from notification feed.")
     if os.path.exists(filename):
       f = open(filename, "r")
+      #dump current data
+      data = f.readlines()
+      f.seek(0)
       for client in f:
         # lets fix it to 5 minutes -> 300 seconds
-        if time.time() - float(client.split(";")[1]) > 300:
+        if time.time() - float(client.split(";")[1]) > 100:
 	  #can be remobe from the list
 	  if client.split(";")[0] not in client_to_remove:
    	    client_to_remove.append(client.split(";")[0])
@@ -156,28 +159,28 @@ def monitorClientsList(filename):
 
     if len(client_to_remove) > 0:
       logger.info("%d clients can be removed from the notification feed" % len(client_to_remove))
-      try:
-        f = open(filename, 'w+')
-        logger.info("%s is not locked. Cleaning the file" % filename)
-        data = f.readlines()
-        f.seek(0)
-        for i in data:
-          ip_client = i.split(";")[0]
-          if ip_client not in client_to_remove:
-            f.write(i)
-          else:
-            logger.info("Found %s in file (%s)" % ( ip_client, i))
-            logger.info("Client IP %s has been removed" %ip_client)
-            client_to_remove.remove(ip_client)
-        f.truncate()
-	    #rewrite gz
-	    write_to_file(psiphon_clients_file, psiphon_clients_file_compressed, clientlist)		
-      except IOError, message:
-        logger.info("File is locked (%s). Retry in next iteration." % message)
-      finally:
-        if f:
-          f.close()
-          logger.info("%s closed." % filename)
+      f = open(filename, 'w+')
+      #f.seek(0)
+      #data = f.readlines()
+      logger.info("data is %s" %data)	
+      f.seek(0)
+      for i in data:
+        ip_client = i.split(";")[0]
+	logger.info("comparing now %s (%s)" % (ip_client, i))
+        if ip_client not in client_to_remove:
+          f.write(i)
+        else:
+          logger.info("Found %s in file (%s)" % ( ip_client, i))
+          logger.info("Client IP %s has been removed" %ip_client)
+          client_to_remove.remove(ip_client)
+	  logger.info("Client list is: %s" % clientlist)
+          logger.info("Client List to remove is: %s" % client_to_remove)
+          clientlist.remove(ip_client)
+          logger.info("Client list is now: %s" % clientlist)
+	  logger.info("Client List to remove is now: %s" % client_to_remove)
+	f.close()
+	#rewrite gz
+        gzip_file(filename, psiphon_clients_file_compressed)
     else:
       logger.info("No entry has expired")
 
