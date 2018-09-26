@@ -48,7 +48,7 @@ def start_server():
     print "set security dynamic-address feed-server custom-feed update-interval 30"
     print "set security dynamic-address feed-server custom-feed hold-interval 300"
     print "set security dynamic-address feed-server custom-feed feed-name "+psiphon_servers_file+" path "+psiphon_servers_file_compressed
-    print "set security dynamic-address address-name custom-feed profile feed-name custom-feed"
+    print "set security dynamic-address address-name custom-feed-psiphon-nodes profile feed-name vpnfeed"
     print "set security dynamic-address feed-server custom-feed feed-name "+psiphon_clients_file+" path "+psiphon_clients_file_compressed
     print "set security dynamic-address address-name custom-feed-clients profile feed-name clientfeed"
     print "=========="
@@ -67,6 +67,11 @@ def isNewEntry(f, ip):
     return isFound  
 
 def write_to_file(f, f_gz, liste):
+
+    global _lock
+
+    _lock.acquire()
+
     txt_file = open(f, "a+")
     now = time.time()
     for ip in liste:
@@ -75,8 +80,11 @@ def write_to_file(f, f_gz, liste):
 	txt_file.seek(2)
         txt_file.write(str(ip)+";"+str(now)+"\n")
       else:
-        print "IP %s already exist in file %s" % (ip, f)
+        print "IP %s is already known in the file %s" % (ip, f)
     txt_file.close()
+
+    #release
+    _lock.release()
     gzip_file(f, f_gz)
 
 def gzip_file(f, f_compressed):
@@ -98,27 +106,37 @@ def gzip_file(f, f_compressed):
 
 def syslog_print(packet):
     psiphon_server_regex = re.compile(r'^.*source-address=\"(([0-9]{1,3}\.){3}[0-9]{1,3}).*destination-address=\"(([0-9]{1,3}\.){3}[0-9]{1,3}).*(attack-name=\"PSIPHON-).*$')
+    psiphon_client_regex = re.compile(r'^.*RT_FLOW_SESSION_DENY.*source-address=\"(([0-9]{1,3}\.){3}[0-9]{1,3}).*(policy-name=\"Block-Psiphon-Users).*$')
     line = str(packet[UDP].payload)
     log = line.split('\n')
 
-    psiphon_syslog = psiphon_server_regex.search(log[0])
-    if psiphon_syslog != None:
-        #print "match! Source IP: "+str(psiphon_syslog.group(1))+" - Destination IP "+str(psiphon_syslog.group(3))+"\n"
-        ip_addr = psiphon_syslog.group(3) + "/32"
+    psiphon_syslog_idp = psiphon_server_regex.search(log[0])
+    psiphon_syslog_rt = psiphon_client_regex.search(log[0])
+    if psiphon_syslog_idp != None:
+        #print "match! Source IP: "+str(psiphon_syslog_idp.group(1))+" - Destination IP "+str(psiphon_syslog_idp.group(3))+"\n"
+        ip_addr = psiphon_syslog_idp.group(3) + "/32"
         #ip_addr = IPNetwork(log[0])
         if ip_addr not in vpnlist:
             print "New server detected -> "+str(ip_addr)
             vpnlist.append(ip_addr)
             vpnlist.sort()
-            #print vpnlist
             write_to_file(psiphon_servers_file, psiphon_servers_file_compressed, vpnlist)
 
-        ip_client = psiphon_syslog.group(1) + "/32"
+        ip_client = psiphon_syslog_idp.group(1) + "/32"
         if ip_client not in clientlist:
             print "New Client detected -> "+str(ip_client)
             clientlist.append(ip_client)
             clientlist.sort()
             write_to_file(psiphon_clients_file, psiphon_clients_file_compressed, clientlist)
+    elif psiphon_syslog_rt != None:
+        print "match! New Source Client IP of a psiphon user: "+str(psiphon_syslog_rt.group(1))+"\n"
+        ip_client = psiphon_syslog_rt.group(1) + "/32"
+        if ip_client not in clientlist:
+            print "This Client is not is in the current blocking list -> "+str(ip_client)
+            clientlist.append(ip_client)
+            clientlist.sort()
+            write_to_file(psiphon_clients_file, psiphon_clients_file_compressed, clientlist)
+
 
 
 def fileExist(fname, gz=None):
@@ -134,6 +152,8 @@ def fileExist(fname, gz=None):
 
 
 def monitorClientsList(filename):
+
+  global _lock
 
   client_to_remove = []
 
@@ -157,8 +177,14 @@ def monitorClientsList(filename):
     else:
       logger.info("Cannot find the file %s" %filename)
 
+    # test if any entries has to be removed.
     if len(client_to_remove) > 0:
       logger.info("%d clients can be removed from the notification feed" % len(client_to_remove))
+      
+      #lock
+      _lock.acquire()
+      
+      #open file
       f = open(filename, 'w+')
       #f.seek(0)
       #data = f.readlines()
@@ -166,25 +192,29 @@ def monitorClientsList(filename):
       f.seek(0)
       for i in data:
         ip_client = i.split(";")[0]
-	logger.info("comparing now %s (%s)" % (ip_client, i))
+        logger.info("comparing now %s (%s)" % (ip_client, i))
         if ip_client not in client_to_remove:
           f.write(i)
         else:
           logger.info("Found %s in file (%s)" % ( ip_client, i))
           logger.info("Client IP %s has been removed" %ip_client)
           client_to_remove.remove(ip_client)
-	  logger.info("Client list is: %s" % clientlist)
+          logger.info("Client list is: %s" % clientlist)
           logger.info("Client List to remove is: %s" % client_to_remove)
           clientlist.remove(ip_client)
           logger.info("Client list is now: %s" % clientlist)
-	  logger.info("Client List to remove is now: %s" % client_to_remove)
-	f.close()
-	#rewrite gz
+          logger.info("Client List to remove is now: %s" % client_to_remove)
+
+        #unlock and close
+        f.close()
+        _lock.release()
+    	#rewrite gz
         gzip_file(filename, psiphon_clients_file_compressed)
+
     else:
       logger.info("No entry has expired")
 
-    time.sleep(10)
+    time.sleep(20)
 
 if __name__ == "__main__":
 
@@ -202,6 +232,8 @@ if __name__ == "__main__":
     clientlist = [IPNetwork(line.rstrip('\n').split(";")[0]) for line in open(psiphon_clients_file)]
     clientlist.sort()
     print "Existing Clients list loaded..."
+
+    _lock = thread.allocate_lock()
 
     thread.start_new_thread(start_server, ())
     thread.start_new_thread(monitorClientsList, (psiphon_clients_file,))
