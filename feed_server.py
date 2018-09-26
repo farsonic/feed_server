@@ -76,11 +76,11 @@ def write_to_file(f, f_gz, liste):
     now = time.time()
     for ip in liste:
       if isNewEntry(txt_file, ip) == False:
-        print "IP %s does not exist in the file %s" % (ip, f)
-	txt_file.seek(2)
+        #print "IP %s does not exist in the file %s" % (ip, f)
+        txt_file.seek(2)
         txt_file.write(str(ip)+";"+str(now)+"\n")
-      else:
-        print "IP %s is already known in the file %s" % (ip, f)
+      #else:
+        #print "IP %s is already known in the file %s" % (ip, f)
     txt_file.close()
 
     #release
@@ -185,16 +185,16 @@ def monitorClientsList(filename):
       _lock.acquire()
       
       #open file
-      f = open(filename, 'w+')
+      f_client = open(filename, 'w+')
       #f.seek(0)
       #data = f.readlines()
       logger.info("data is %s" %data)	
-      f.seek(0)
+      f_client.seek(0)
       for i in data:
         ip_client = i.split(";")[0]
         logger.info("comparing now %s (%s)" % (ip_client, i))
         if ip_client not in client_to_remove:
-          f.write(i)
+          f_client.write(i)
         else:
           logger.info("Found %s in file (%s)" % ( ip_client, i))
           logger.info("Client IP %s has been removed" %ip_client)
@@ -206,7 +206,7 @@ def monitorClientsList(filename):
           logger.info("Client List to remove is now: %s" % client_to_remove)
 
         #unlock and close
-        f.close()
+        f_client.close()
         _lock.release()
     	#rewrite gz
         gzip_file(filename, psiphon_clients_file_compressed)
