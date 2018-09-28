@@ -70,6 +70,9 @@ def write_to_file(f, f_gz, liste):
 
     global _lock
 
+    while _lock.locked():
+        continue
+
     _lock.acquire()
 
     txt_file = open(f, "a+")
@@ -161,6 +164,11 @@ def monitorClientsList(filename):
 
   while True:
 
+    while _lock.locked():
+        continue
+
+    _lock.acquire()
+
     logger.info("Checking if some clients can be removed from notification feed.")
     if os.path.exists(filename):
       f = open(filename, "r")
@@ -180,9 +188,6 @@ def monitorClientsList(filename):
     # test if any entries has to be removed.
     if len(client_to_remove) > 0:
       logger.info("%d clients can be removed from the notification feed" % len(client_to_remove))
-      
-      #lock
-      _lock.acquire()
       
       #open file
       f_client = open(filename, 'w+')
