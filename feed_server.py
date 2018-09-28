@@ -24,13 +24,15 @@ port = '4443'
 
 
 
-def init_logger():
+def init_logger(name):
 
-  logging.basicConfig(filename='./thread_clients_update',
+  filename = "./"+name
+
+  logging.basicConfig(filename=filename,
                       level = logging.INFO,
                       format='%(asctime)s %(levelname)-8s %(message)s',
                       datefmt='%a, %d %b %Y %H:%M:%S')
-  global logger
+  #global logger
   logger = logging.getLogger(__name__) 
 
   logger.info(" -- Start -- ")
@@ -71,6 +73,8 @@ def write_to_file(f, f_gz, liste):
     global _lock
 
     while _lock.locked():
+        time.sleep(1)
+        logger_client.info("Cant acquire lock. Wait 1 sec and retry.")
         continue
 
     _lock.acquire()
@@ -120,22 +124,22 @@ def syslog_print(packet):
         ip_addr = psiphon_syslog_idp.group(3) + "/32"
         #ip_addr = IPNetwork(log[0])
         if ip_addr not in vpnlist:
-            print "New server detected -> "+str(ip_addr)
+            logger_client.info("New server detected -> %s" % str(ip_addr))
             vpnlist.append(ip_addr)
             vpnlist.sort()
             write_to_file(psiphon_servers_file, psiphon_servers_file_compressed, vpnlist)
 
         ip_client = psiphon_syslog_idp.group(1) + "/32"
         if ip_client not in clientlist:
-            print "New Client detected -> "+str(ip_client)
+            logger_client.info("New Client detected -> %s" % str(ip_client))
             clientlist.append(ip_client)
             clientlist.sort()
             write_to_file(psiphon_clients_file, psiphon_clients_file_compressed, clientlist)
     elif psiphon_syslog_rt != None:
-        print "match! New Source Client IP of a psiphon user: "+str(psiphon_syslog_rt.group(1))+"\n"
+        logger_client.info("Match! New Source Client IP of a psiphon user: %s" % str(psiphon_syslog_rt.group(1)))
         ip_client = psiphon_syslog_rt.group(1) + "/32"
         if ip_client not in clientlist:
-            print "This Client is not is in the current blocking list -> "+str(ip_client)
+            logger_client.info("This Client is not is in the current blocking list -> %s" %str(ip_client))
             clientlist.append(ip_client)
             clientlist.sort()
             write_to_file(psiphon_clients_file, psiphon_clients_file_compressed, clientlist)
@@ -160,16 +164,18 @@ def monitorClientsList(filename):
 
   client_to_remove = []
 
-  logger.info("Starting thread for clients notification feed update")
+  logger_client.info("Starting thread for clients notification feed update")
 
   while True:
 
     while _lock.locked():
+        time.sleep(1)
+        logger.info("cant acquire lock on the file")
         continue
 
     _lock.acquire()
 
-    logger.info("Checking if some clients can be removed from notification feed.")
+    logger_client.info("Checking if some clients can be removed from notification feed.")
     if os.path.exists(filename):
       f = open(filename, "r")
       #dump current data
@@ -183,47 +189,52 @@ def monitorClientsList(filename):
    	    client_to_remove.append(client.split(";")[0])
       f.close()
     else:
-      logger.info("Cannot find the file %s" %filename)
+      logger_client.info("Cannot find the file %s" %filename)
 
     # test if any entries has to be removed.
     if len(client_to_remove) > 0:
-      logger.info("%d clients can be removed from the notification feed" % len(client_to_remove))
+      logger_client.info("%d clients can be removed from the notification feed" % len(client_to_remove))
       
       #open file
       f_client = open(filename, 'w+')
       #f.seek(0)
       #data = f.readlines()
-      logger.info("data is %s" %data)	
+      logger_client.info("data is %s" %data)	
       f_client.seek(0)
       for i in data:
         ip_client = i.split(";")[0]
-        logger.info("comparing now %s (%s)" % (ip_client, i))
+        logger_client.info("comparing now %s (%s)" % (ip_client, i))
         if ip_client not in client_to_remove:
           f_client.write(i)
         else:
-          logger.info("Found %s in file (%s)" % ( ip_client, i))
-          logger.info("Client IP %s has been removed" %ip_client)
+          logger_client.info("Found %s in file (%s)" % ( ip_client, i))
+          logger_client.info("Client IP %s has been removed" %ip_client)
           client_to_remove.remove(ip_client)
-          logger.info("Client list is: %s" % clientlist)
-          logger.info("Client List to remove is: %s" % client_to_remove)
+          logger_client.info("Client list is: %s" % clientlist)
+          logger_client.info("Client List to remove is: %s" % client_to_remove)
           clientlist.remove(ip_client)
-          logger.info("Client list is now: %s" % clientlist)
-          logger.info("Client List to remove is now: %s" % client_to_remove)
+          logger_client.info("Client list is now: %s" % clientlist)
+          logger_client.info("Client List to remove is now: %s" % client_to_remove)
 
-        #unlock and close
-        f_client.close()
-        _lock.release()
-    	#rewrite gz
-        gzip_file(filename, psiphon_clients_file_compressed)
+      #close
+      f_client.close()
+        
+      #rewrite gz
+      gzip_file(filename, psiphon_clients_file_compressed)
 
     else:
       logger.info("No entry has expired")
 
+    _lock.release()
     time.sleep(20)
 
 if __name__ == "__main__":
 
-    init_logger()
+
+    global logger_client
+    global logger_feed
+    logger_client = init_logger("thread_clients_update")
+    logger_feed = init_logger("feeds_update")
 
     fileExist(psiphon_servers_file)
     fileExist(psiphon_clients_file)
@@ -232,11 +243,11 @@ if __name__ == "__main__":
 
     vpnlist = [IPNetwork(line.rstrip('\n').split(";")[0]) for line in open(psiphon_servers_file)]
     vpnlist.sort()
-    print "Existing VPN list loaded..."
+    logger_client.info("Existing VPN list loaded...")
 
     clientlist = [IPNetwork(line.rstrip('\n').split(";")[0]) for line in open(psiphon_clients_file)]
     clientlist.sort()
-    print "Existing Clients list loaded..."
+    logger_client.info("Existing Clients list loaded...")
 
     _lock = thread.allocate_lock()
 
