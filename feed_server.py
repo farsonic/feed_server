@@ -197,7 +197,7 @@ def monitorClientsList(filename):
       f_client = open(filename, 'w+')
       #f.seek(0)
       #data = f.readlines()
-      logger.info("data is %s" %data)	
+      logger.debug("data is %s" %data)	
       f_client.seek(0)
       for i in data:
         ip_client = i.split(";")[0]
