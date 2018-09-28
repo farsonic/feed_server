@@ -170,7 +170,7 @@ def monitorClientsList(filename):
 
     while _lock.locked():
         time.sleep(1)
-        logger.info("cant acquire lock on the file")
+        logger_client.info("cant acquire lock on the file")
         continue
 
     _lock.acquire()
@@ -223,7 +223,7 @@ def monitorClientsList(filename):
       gzip_file(filename, psiphon_clients_file_compressed)
 
     else:
-      logger.info("No entry has expired")
+      logger_client.info("No entry has expired")
 
     _lock.release()
     time.sleep(20)
