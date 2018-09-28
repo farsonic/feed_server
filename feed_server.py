@@ -74,7 +74,7 @@ def write_to_file(f, f_gz, liste):
 
     while _lock.locked():
         time.sleep(1)
-        logger_client.info("Cant acquire lock. Wait 1 sec and retry.")
+        logger_feed.info("Cant acquire lock. Wait 1 sec and retry.")
         continue
 
     _lock.acquire()
@@ -124,22 +124,22 @@ def syslog_print(packet):
         ip_addr = psiphon_syslog_idp.group(3) + "/32"
         #ip_addr = IPNetwork(log[0])
         if ip_addr not in vpnlist:
-            logger_client.info("New server detected -> %s" % str(ip_addr))
+            logger_feed.info("New server detected -> %s" % str(ip_addr))
             vpnlist.append(ip_addr)
             vpnlist.sort()
             write_to_file(psiphon_servers_file, psiphon_servers_file_compressed, vpnlist)
 
         ip_client = psiphon_syslog_idp.group(1) + "/32"
         if ip_client not in clientlist:
-            logger_client.info("New Client detected -> %s" % str(ip_client))
+            logger_feed.info("New Client detected -> %s" % str(ip_client))
             clientlist.append(ip_client)
             clientlist.sort()
             write_to_file(psiphon_clients_file, psiphon_clients_file_compressed, clientlist)
     elif psiphon_syslog_rt != None:
-        logger_client.info("Match! New Source Client IP of a psiphon user: %s" % str(psiphon_syslog_rt.group(1)))
+        logger_feed.info("Match! New Source Client IP of a psiphon user: %s" % str(psiphon_syslog_rt.group(1)))
         ip_client = psiphon_syslog_rt.group(1) + "/32"
         if ip_client not in clientlist:
-            logger_client.info("This Client is not is in the current blocking list -> %s" %str(ip_client))
+            logger_feed.info("This Client is not is in the current blocking list -> %s" %str(ip_client))
             clientlist.append(ip_client)
             clientlist.sort()
             write_to_file(psiphon_clients_file, psiphon_clients_file_compressed, clientlist)
